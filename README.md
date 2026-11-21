@@ -19,7 +19,7 @@ Paste this into any PowerShell window (the built-in Windows PowerShell is fine):
 
     irm https://raw.githubusercontent.com/andrewpayne68/windows-terminal-ohmyposh/main/install.ps1 | iex
 
-It installs PowerShell 7, Oh My Posh, the IosevkaTerm Nerd Font and the prompt theme, writes your PowerShell profile (even if OneDrive has moved your Documents folder), sets the execution policy to RemoteSigned, and sets up Windows Terminal: the font, PowerShell 7 as the default profile starting in your user folder, copy on select, no logo, and Windows Terminal as the default terminal app. Anything it changes is backed up first (`*.bak-<date>`), and it's safe to run again.
+It installs PowerShell 7, Oh My Posh, the IosevkaTerm Nerd Font and the prompt theme, writes your PowerShell profile (even if OneDrive has moved your Documents folder), sets the execution policy to RemoteSigned, and sets up Windows Terminal: the font, the CGA color scheme as the default for all profiles, PowerShell 7 as the default profile starting in your user folder, copy on select, no logo, and Windows Terminal as the default terminal app. Anything it changes is backed up first (`*.bak-<date>`), and it's safe to run again.
 
 Then close every Windows Terminal window and open it again. If you've never opened Windows Terminal on that machine, open and close it once first, then run the line again.
 
@@ -132,7 +132,7 @@ Open Terminal Settings
 -------------
 
  - Profiles:
-    - Set Defaults - PowerShell, Starting directory to $USERPROFILE% , Appearance set Font to IosevkaTerm Nerd Font Mono ,
+    - Set Defaults - PowerShell, Starting directory to $USERPROFILE% , Appearance set Font to IosevkaTerm Nerd Font Mono and Color scheme to CGA ,
 - Startup:
     - set PowerShell, Default Terminal Application
 - Interaction

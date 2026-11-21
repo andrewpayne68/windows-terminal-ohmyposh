@@ -20,6 +20,7 @@ $RepoRaw   = 'https://raw.githubusercontent.com/andrewpayne68/windows-terminal-o
 $FontFile  = 'IosevkaTermNerdFontMono-Regular.ttf'
 $FontName  = 'IosevkaTerm Nerd Font Mono'
 $ThemeFile = 'jandedobbeleer.omp.json'
+$ColorScheme = 'CGA'   # Windows Terminal's built-in CGA scheme, set as the default for all profiles
 $Stamp     = Get-Date -Format 'yyyyMMdd-HHmmss'
 $LocalRepo = if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot $ThemeFile))) { $PSScriptRoot } else { $null }
 
@@ -70,9 +71,9 @@ function Set-JsonProp($obj, $name, $value) {
     else { $obj | Add-Member -NotePropertyName $name -NotePropertyValue $value }
 }
 
-# Edits a Windows Terminal settings.json: font, default profile, start folder,
+# Edits a Windows Terminal settings.json: font, color scheme, default profile, start folder,
 # copy on select and -nologo. Returns $false if the file can't be read as JSON.
-function Update-TerminalSettings($path, $fontName) {
+function Update-TerminalSettings($path, $fontName, $colorScheme) {
     $raw = Get-Content $path -Raw -Encoding UTF8
     try {
         $json = $raw | ConvertFrom-Json
@@ -94,6 +95,7 @@ function Update-TerminalSettings($path, $fontName) {
     $defaults = $profiles.defaults
     if (-not $defaults.PSObject.Properties['font'] -or $null -eq $defaults.font) { Set-JsonProp $defaults 'font' ([pscustomobject]@{}) }
     Set-JsonProp $defaults.font 'face' $fontName
+    if ($colorScheme) { Set-JsonProp $defaults 'colorScheme' $colorScheme }
 
     $pwshGuid = '{574e775e-4f2a-5b96-ac1e-a2962a402336}'
     if (-not $profiles.PSObject.Properties['list'] -or $null -eq $profiles.list) { Set-JsonProp $profiles 'list' @() }
@@ -231,10 +233,10 @@ if (-not $wtPaths) {
 } else {
     foreach ($wt in $wtPaths) {
         Backup-File $wt
-        if (Update-TerminalSettings $wt $FontName) {
-            Write-Ok "Updated $wt"
+        if (Update-TerminalSettings $wt $FontName $ColorScheme) {
+            Write-Ok "Updated $wt (font $FontName, color scheme $ColorScheme)"
         } else {
-            Write-Note "Couldn't read $wt, so it's unchanged. Set the font to '$FontName' in Terminal settings by hand."
+            Write-Note "Couldn't read $wt, so it's unchanged. Set the font to '$FontName' and the color scheme to '$ColorScheme' in Terminal settings by hand."
         }
     }
 }
