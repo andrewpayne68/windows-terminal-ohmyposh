@@ -3,14 +3,34 @@ Introduction
 
 This Repo will enable and guide you through the installation the fabulous Oh-My-Posh! on Windows Terminal, courtesy of [Jan De Dobbeleer](https://github.com/JanDeDobbeleer/oh-my-posh), on Windows Server 2022, Windows 10 LTSC, Windows Server 2025 and Windows 11. All files needed have been included, even the Iosevka Term Nerd Font Mono Regular Nerd TrueType Font used (Courtesy of [Nerd Fonts](https://www.nerdfonts.com/font-downloads))
 
-For Windows 11 and Server 2025, scroll down to Installing PowerShell 7
-
 Note: I could not get this to work in Server 2019, despite successfully installing WinGet, the Terminal was a no-go.
 
 <br />
 
 
 <img width="1262" height="837" alt="screenshot" src="https://github.com/user-attachments/assets/7805987c-182a-4b6b-b193-ac5d9e8eb96c" />
+
+<br />
+
+Quick install (one line)
+========================
+
+Paste this into any PowerShell window (the built-in Windows PowerShell is fine):
+
+    irm https://raw.githubusercontent.com/andrewpayne68/windows-terminal-ohmyposh/main/install.ps1 | iex
+
+It installs PowerShell 7, Oh My Posh, the IosevkaTerm Nerd Font and the prompt theme, writes your PowerShell profile (even if OneDrive has moved your Documents folder), sets the execution policy to RemoteSigned, and sets up Windows Terminal: the font, PowerShell 7 as the default profile starting in your user folder, copy on select, no logo, and Windows Terminal as the default terminal app. Anything it changes is backed up first (`*.bak-<date>`), and it's safe to run again.
+
+Then close every Windows Terminal window and open it again. If you've never opened Windows Terminal on that machine, open and close it once first, then run the line again.
+
+On Windows Server 2022, install WinGet first (below), then run the line above. The manual steps below are still here if you'd rather do it by hand.
+
+<br />
+
+Manual install
+==============
+
+For Windows 11 and Server 2025, scroll down to Installing PowerShell 7
 
 <br />
 
@@ -73,18 +93,18 @@ Install PowerShell 7
 
     winget install Microsoft.PowerShell
 
-or, in case of "Failed when seaching source: msstore" error:
+or, in case of "Failed when searching source: msstore" error:
 
     winget install Microsoft.Powershell --source winget
 
 <br />
 
-Install JanDeDonneleer's OhMyPosh for Windows Terminal
+Install JanDeDobbeleer's OhMyPosh for Windows Terminal
 -----------------------------------------------------
 
     winget install JanDeDobbeleer.OhMyPosh
 
-or, in case of "Failed when seaching source: msstore" error:
+or, in case of "Failed when searching source: msstore" error:
 
     winget install JanDeDobbeleer.OhMyPosh --source winget
 
@@ -153,7 +173,7 @@ Troubleshooting
 3. Check that the folder under Documents is named `PowerShell` (tip - I copy paste WindowsPowerShell folder if there and then rename copied folder to PowerShell) and copy both `Microsoft.PowerShell_profile.ps1` and `powershell.config.json` files inside
 4. Make sure you have run `Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope CurrentUser` whilst in the `PowerShell` area of Terminal (configured in Settings as Startup Profile)
 5. Try opening the PowerShell 7 application itself (in Admin mode) via the Start Menu and run the `Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope CurrentUser` command again.
-6. Make sure the jandedobbleleer.omp.json is in your user folder (c:\users\username)
+6. Make sure the jandedobbeleer.omp.json is in your user folder (c:\users\username)
 
 More help here:
 https://github.com/JanDeDobbeleer/oh-my-posh/discussions/3412
