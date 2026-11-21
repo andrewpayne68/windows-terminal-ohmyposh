@@ -200,13 +200,34 @@ try {
 
 # 6. Windows Terminal settings
 Write-Step 'Setting up Windows Terminal'
-$wtPaths = @(
-    "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json",
+$wtStoreSettings = "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
+$wtAllSettings = @(
+    $wtStoreSettings,
     "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json",
     "$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json"
-) | Where-Object { Test-Path $_ }
+)
+$hasTerminal = [bool](Get-AppxPackage -Name 'Microsoft.WindowsTerminal' -ErrorAction SilentlyContinue)
+if (-not $hasTerminal) {
+    Install-WingetPackage 'Microsoft.WindowsTerminal' 'wt'
+    $hasTerminal = [bool](Get-AppxPackage -Name 'Microsoft.WindowsTerminal' -ErrorAction SilentlyContinue)
+}
+
+# A Terminal that has never been opened has no settings file yet: open it
+# briefly so it writes one, then close only the window this script opened.
+if ($hasTerminal -and -not ($wtAllSettings | Where-Object { Test-Path $_ })) {
+    Write-Note 'First run of Windows Terminal: opening it briefly to create its settings'
+    $launched = Get-Date
+    Start-Process 'wt.exe' -WindowStyle Minimized
+    for ($i = 0; $i -lt 30 -and -not (Test-Path $wtStoreSettings); $i++) { Start-Sleep -Milliseconds 500 }
+    Start-Sleep -Seconds 1
+    Get-Process WindowsTerminal -ErrorAction SilentlyContinue |
+        Where-Object { $_.StartTime -ge $launched } |
+        Stop-Process -Force -ErrorAction SilentlyContinue
+}
+
+$wtPaths = $wtAllSettings | Where-Object { Test-Path $_ }
 if (-not $wtPaths) {
-    Write-Note 'No Windows Terminal settings found yet. Open Windows Terminal once, close it, and run this again.'
+    Write-Note 'No Windows Terminal settings found. Open Windows Terminal once, close it, and run this again.'
 } else {
     foreach ($wt in $wtPaths) {
         Backup-File $wt
@@ -218,13 +239,20 @@ if (-not $wtPaths) {
     }
 }
 
-# Make Windows Terminal the default terminal app (Windows 11).
-if (Test-Path "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe") {
+# Make Windows Terminal the default terminal app, so PowerShell and anything
+# else that opens a console (admin windows included) opens in Terminal.
+if ($hasTerminal) {
     $startup = 'HKCU:\Console\%%Startup'
     if (-not (Test-Path $startup)) { New-Item $startup -Force | Out-Null }
     Set-ItemProperty $startup -Name DelegationConsole  -Value '{2EACA947-7F5F-4CFA-BA87-8F7FBEEFBE69}'
     Set-ItemProperty $startup -Name DelegationTerminal -Value '{E12CFF52-A866-4C77-9A90-F570A7AA2C6B}'
-    Write-Ok 'Windows Terminal is the default terminal app'
+    Write-Ok 'Windows Terminal is now the default terminal app'
+} else {
+    Write-Note 'Windows Terminal is not installed, so the default terminal app is unchanged.'
 }
 
-Write-Host "`nDone. Close every Windows Terminal window and open it again." -ForegroundColor Magenta
+Write-Host "`nDone. Close any other PowerShell or Terminal windows: they started before the install." -ForegroundColor Magenta
+if ($hasTerminal) {
+    Write-Host 'Opening a fresh Windows Terminal with the new look...' -ForegroundColor Magenta
+    Start-Process 'wt.exe'
+}
