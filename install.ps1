@@ -20,7 +20,15 @@ $RepoRaw   = 'https://raw.githubusercontent.com/andrewpayne68/windows-terminal-o
 $FontFile  = 'IosevkaTermNerdFontMono-Regular.ttf'
 $FontName  = 'IosevkaTerm Nerd Font Mono'
 $ThemeFile = 'jandedobbeleer.omp.json'
-$ColorScheme = 'CGA'   # Windows Terminal's built-in CGA scheme, set as the default for all profiles
+$ColorScheme = 'CGA'   # set as the default color scheme for all profiles
+# CGA is built into newer Windows Terminal versions, but not the older Terminal on a clean
+# Windows 11 install. Its colors (copied from Terminal's defaults.json) are added to
+# settings.json when missing, so the scheme exists on every Terminal version.
+$ColorSchemeColors = [ordered]@{
+    name = 'CGA'; foreground = '#AAAAAA'; background = '#000000'; cursorColor = '#00AA00'; selectionBackground = '#FFFFFF'
+    black = '#000000'; red = '#AA0000'; green = '#00AA00'; yellow = '#AA5500'; blue = '#0000AA'; purple = '#AA00AA'; cyan = '#00AAAA'; white = '#AAAAAA'
+    brightBlack = '#555555'; brightRed = '#FF5555'; brightGreen = '#55FF55'; brightYellow = '#FFFF55'; brightBlue = '#5555FF'; brightPurple = '#FF55FF'; brightCyan = '#55FFFF'; brightWhite = '#FFFFFF'
+}
 $Stamp     = Get-Date -Format 'yyyyMMdd-HHmmss'
 $LocalRepo = if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot $ThemeFile))) { $PSScriptRoot } else { $null }
 
@@ -73,7 +81,7 @@ function Set-JsonProp($obj, $name, $value) {
 
 # Edits a Windows Terminal settings.json: font, color scheme, default profile, start folder,
 # copy on select and -nologo. Returns $false if the file can't be read as JSON.
-function Update-TerminalSettings($path, $fontName, $colorScheme) {
+function Update-TerminalSettings($path, $fontName, $colorScheme, $schemeColors) {
     $raw = Get-Content $path -Raw -Encoding UTF8
     try {
         $json = $raw | ConvertFrom-Json
@@ -95,7 +103,17 @@ function Update-TerminalSettings($path, $fontName, $colorScheme) {
     $defaults = $profiles.defaults
     if (-not $defaults.PSObject.Properties['font'] -or $null -eq $defaults.font) { Set-JsonProp $defaults 'font' ([pscustomobject]@{}) }
     Set-JsonProp $defaults.font 'face' $fontName
-    if ($colorScheme) { Set-JsonProp $defaults 'colorScheme' $colorScheme }
+    if ($colorScheme) {
+        # Add the scheme's colors unless settings.json already defines a scheme with that name.
+        if ($schemeColors) {
+            $schemes = @()
+            if ($json.PSObject.Properties['schemes'] -and $null -ne $json.schemes) { $schemes = @($json.schemes) }
+            if (-not ($schemes | Where-Object { $_.PSObject.Properties['name'] -and $_.name -eq $colorScheme })) {
+                Set-JsonProp $json 'schemes' (@($schemes) + [pscustomobject]$schemeColors)
+            }
+        }
+        Set-JsonProp $defaults 'colorScheme' $colorScheme
+    }
 
     $pwshGuid = '{574e775e-4f2a-5b96-ac1e-a2962a402336}'
     if (-not $profiles.PSObject.Properties['list'] -or $null -eq $profiles.list) { Set-JsonProp $profiles 'list' @() }
@@ -233,7 +251,7 @@ if (-not $wtPaths) {
 } else {
     foreach ($wt in $wtPaths) {
         Backup-File $wt
-        if (Update-TerminalSettings $wt $FontName $ColorScheme) {
+        if (Update-TerminalSettings $wt $FontName $ColorScheme $ColorSchemeColors) {
             Write-Ok "Updated $wt (font $FontName, color scheme $ColorScheme)"
         } else {
             Write-Note "Couldn't read $wt, so it's unchanged. Set the font to '$FontName' and the color scheme to '$ColorScheme' in Terminal settings by hand."
