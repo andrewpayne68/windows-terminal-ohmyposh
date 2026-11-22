@@ -74,6 +74,50 @@ function Install-WingetPackage($id, $exe) {
     Write-Ok "$id installed"
 }
 
+# Windows Server: winget installs Oh My Posh as a packaged (MSIX) app, and on Server every run
+# of its app alias flashes an empty "App Installer" window - three times each time a prompt
+# starts. So on Server, use the standalone oh-my-posh.exe from the GitHub release instead,
+# checked against the release's checksums.txt, in your user folder.
+$PoshDir = Join-Path $env:LOCALAPPDATA 'Programs\oh-my-posh\bin'
+$PoshExe = Join-Path $PoshDir 'oh-my-posh.exe'
+function Install-OhMyPoshStandalone {
+    $cpu = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+    $arch = if ($cpu -eq 'ARM64') { 'arm64' } else { 'amd64' }
+    $rel = Invoke-RestMethod -UseBasicParsing 'https://api.github.com/repos/JanDeDobbeleer/oh-my-posh/releases/latest'
+    $latest = ([string]$rel.tag_name).TrimStart('v')
+    if (Test-Path $PoshExe) {
+        $have = ([string](& $PoshExe version 2>$null)).Trim()
+        if ($have -eq $latest) { Write-Ok "Oh My Posh $have is already installed (standalone)"; return }
+    }
+    $name = "posh-windows-$arch.exe"
+    $exeUrl = ($rel.assets | Where-Object name -eq $name).browser_download_url
+    $sumUrl = ($rel.assets | Where-Object name -eq 'checksums.txt').browser_download_url
+    if (-not $exeUrl -or -not $sumUrl) { throw "The Oh My Posh release is missing $name or checksums.txt." }
+    $tmp = Join-Path $env:TEMP "$name.download"
+    Invoke-WebRequest -UseBasicParsing -Uri $exeUrl -OutFile $tmp
+    $sums = [Text.Encoding]::UTF8.GetString((Invoke-WebRequest -UseBasicParsing -Uri $sumUrl).RawContentStream.ToArray())
+    $want = ($sums -split "`r?`n" | Where-Object { $_ -match "^\s*([0-9a-fA-F]{64})\s+\*?$([regex]::Escape($name))\s*$" } | ForEach-Object { $Matches[1] } | Select-Object -First 1)
+    if (-not $want -or (Get-FileHash $tmp -Algorithm SHA256).Hash -ne $want) {
+        Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+        throw "The downloaded $name didn't match the release's checksum, so it wasn't installed."
+    }
+    New-Item -ItemType Directory -Force $PoshDir | Out-Null
+    # A running prompt may hold the old exe open: move it aside rather than overwrite it.
+    if (Test-Path $PoshExe) {
+        $old = "$PoshExe.old"
+        Remove-Item $old -Force -ErrorAction SilentlyContinue
+        Move-Item $PoshExe $old -Force
+    }
+    Move-Item $tmp $PoshExe -Force
+    Unblock-File $PoshExe -ErrorAction SilentlyContinue
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    if (-not (($userPath -split ';') -contains $PoshDir)) {
+        [Environment]::SetEnvironmentVariable('Path', (@($PoshDir) + @($userPath -split ';' | Where-Object { $_ })) -join ';', 'User')
+    }
+    Update-SessionPath
+    Write-Ok "Oh My Posh $latest installed (standalone, $PoshExe)"
+}
+
 function Set-JsonProp($obj, $name, $value) {
     if ($obj.PSObject.Properties[$name]) { $obj.$name = $value }
     else { $obj | Add-Member -NotePropertyName $name -NotePropertyValue $value }
@@ -147,7 +191,19 @@ Write-Step 'Installing PowerShell 7'
 Install-WingetPackage 'Microsoft.PowerShell' 'pwsh'
 
 Write-Step 'Installing Oh My Posh'
-Install-WingetPackage 'JanDeDobbeleer.OhMyPosh' 'oh-my-posh'
+$isServer = (Get-CimInstance Win32_OperatingSystem).ProductType -ne 1
+if ($isServer) {
+    Install-OhMyPoshStandalone
+    # Remove the packaged copy, if winget put one here earlier, so nothing calls it any more.
+    try {
+        $pkg = Get-AppxPackage -Name 'ohmyposh.cli' -ErrorAction Stop
+        if ($pkg) { $pkg | Remove-AppxPackage -ErrorAction Stop; Write-Ok 'Removed the packaged Oh My Posh (it flashed App Installer windows on Server)' }
+    } catch {
+        Write-Note "Couldn't remove the packaged Oh My Posh: $($_.Exception.Message). Your profile uses the standalone one anyway."
+    }
+} else {
+    Install-WingetPackage 'JanDeDobbeleer.OhMyPosh' 'oh-my-posh'
+}
 
 # 2. Nerd Font: for all users when run as admin (as the wu menu does), otherwise just for you.
 # The file and its registry entry are each checked on their own, so a half-finished earlier
@@ -208,7 +264,12 @@ Write-Step 'Writing your PowerShell profile'
 $docs       = [Environment]::GetFolderPath('MyDocuments')
 $psDir      = Join-Path $docs 'PowerShell'
 $profile7   = Join-Path $psDir 'Microsoft.PowerShell_profile.ps1'
-$initLine   = 'oh-my-posh init pwsh --config "$HOME\jandedobbeleer.omp.json" | Invoke-Expression'
+$initLine   = if ($isServer) {
+    # Full path to the standalone exe, so the packaged app alias is never used on Server.
+    '& "$env:LOCALAPPDATA\Programs\oh-my-posh\bin\oh-my-posh.exe" init pwsh --config "$HOME\jandedobbeleer.omp.json" | Invoke-Expression'
+} else {
+    'oh-my-posh init pwsh --config "$HOME\jandedobbeleer.omp.json" | Invoke-Expression'
+}
 New-Item -ItemType Directory -Force $psDir | Out-Null
 if (Test-Path $profile7) {
     $existing = Get-Content $profile7 -Raw
@@ -217,7 +278,7 @@ if (Test-Path $profile7) {
     } else {
         Backup-File $profile7
         # Replace any older oh-my-posh line, keep everything else.
-        $kept = ($existing -split "`r?`n" | Where-Object { $_ -notmatch '^\s*oh-my-posh\b' }) -join "`r`n"
+        $kept = ($existing -split "`r?`n" | Where-Object { $_ -notmatch '^\s*(&\s*)?["'']?[^"'']*oh-my-posh(\.exe)?["'']?\s+init\b' }) -join "`r`n"
         Set-Content -Path $profile7 -Value ($kept.TrimEnd() + "`r`n" + $initLine).TrimStart() -Encoding UTF8
         Write-Ok "Profile updated: $profile7"
     }

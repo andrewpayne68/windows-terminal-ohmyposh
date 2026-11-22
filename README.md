@@ -21,6 +21,8 @@ Paste this into any PowerShell window (the built-in Windows PowerShell is fine):
 
 It installs PowerShell 7, Oh My Posh, the IosevkaTerm Nerd Font and the prompt theme, writes your PowerShell profile (even if OneDrive has moved your Documents folder), sets the execution policy to RemoteSigned, and sets up Windows Terminal: the font, the CGA color scheme as the default for all profiles, PowerShell 7 as the default profile starting in your user folder, copy on select, no logo, and Windows Terminal as the default terminal app. Anything it changes is backed up first (`*.bak-<date>`), and it's safe to run again.
 
+On Windows Server it installs Oh My Posh as the standalone `oh-my-posh.exe` from the GitHub release (checked against its `checksums.txt`) in `%LOCALAPPDATA%\Programs\oh-my-posh\bin`, instead of the packaged (MSIX) version winget installs: on Server every run of the packaged version flashes an empty App Installer window, several times each time Terminal opens. Run the installer again to update it.
+
 Then close every Windows Terminal window and open it again. If you've never opened Windows Terminal on that machine, open and close it once first, then run the line again.
 
 On Windows Server 2022, install WinGet first (below), then run the line above. The manual steps below are still here if you'd rather do it by hand.
