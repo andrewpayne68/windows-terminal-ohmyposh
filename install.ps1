@@ -149,21 +149,47 @@ Install-WingetPackage 'Microsoft.PowerShell' 'pwsh'
 Write-Step 'Installing Oh My Posh'
 Install-WingetPackage 'JanDeDobbeleer.OhMyPosh' 'oh-my-posh'
 
-# 2. Nerd Font, for the current user (no admin needed)
+# 2. Nerd Font: for all users when run as admin (as the wu menu does), otherwise just for you.
+# The file and its registry entry are each checked on their own, so a half-finished earlier
+# install gets repaired, and running apps are told about the font straight away.
 Write-Step "Installing the $FontName font"
-$userFonts = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
-$fontDest  = Join-Path $userFonts $FontFile
-$fontKey   = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
-$systemHas = Test-Path (Join-Path $env:WINDIR "Fonts\$FontFile")
-if ($systemHas -or (Test-Path $fontDest)) {
-    Write-Ok 'Font is already installed'
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator)
+if ($isAdmin) {
+    $fontDest  = Join-Path $env:WINDIR "Fonts\$FontFile"
+    $fontKey   = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts'
+    $fontValue = $FontFile                     # machine fonts are registered by file name
+    $fontScope = 'for all users'
 } else {
-    New-Item -ItemType Directory -Force $userFonts | Out-Null
-    Get-RepoFile $FontFile $fontDest
-    if (-not (Test-Path $fontKey)) { New-Item $fontKey -Force | Out-Null }
-    New-ItemProperty -Path $fontKey -Name "$FontName (TrueType)" -Value $fontDest -PropertyType String -Force | Out-Null
-    Write-Ok 'Font installed'
+    $fontDest  = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts\$FontFile"
+    $fontKey   = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+    $fontValue = $fontDest                     # per-user fonts are registered by full path
+    $fontScope = 'for you'
 }
+$hadFile = Test-Path $fontDest
+if (-not $hadFile) {
+    New-Item -ItemType Directory -Force (Split-Path $fontDest) | Out-Null
+    Get-RepoFile $FontFile $fontDest
+}
+if (-not (Test-Path $fontKey)) { New-Item $fontKey -Force | Out-Null }
+$entries = (Get-ItemProperty $fontKey).PSObject.Properties | Where-Object { $_.Name -notlike 'PS*' }
+$hadEntry = [bool]($entries | Where-Object { (Split-Path ([string]$_.Value) -Leaf) -eq $FontFile })
+if (-not $hadEntry) {
+    New-ItemProperty -Path $fontKey -Name "$FontName (TrueType)" -Value $fontValue -PropertyType String -Force | Out-Null
+}
+# Load the font into this session and tell running apps the font list changed.
+if (-not ('WtompFonts' -as [type])) {
+    Add-Type -Namespace '' -Name WtompFonts -MemberDefinition @'
+[DllImport("gdi32.dll", CharSet = CharSet.Unicode)] public static extern int AddFontResourceW(string file);
+[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageTimeoutW(IntPtr hWnd, uint msg, UIntPtr wParam, IntPtr lParam, uint flags, uint timeout, out UIntPtr result);
+'@
+}
+$null = [WtompFonts]::AddFontResourceW($fontDest)
+$r = [UIntPtr]::Zero
+$null = [WtompFonts]::SendMessageTimeoutW([IntPtr]0xffff, 0x001D, [UIntPtr]::Zero, [IntPtr]::Zero, 2, 1000, [ref]$r)   # WM_FONTCHANGE to all windows
+if ($hadFile -and $hadEntry) { Write-Ok "Font is already installed ($fontScope)" }
+elseif ($hadFile) { Write-Ok "Font file was there but not registered with Windows: registered it ($fontScope)" }
+else { Write-Ok "Font installed ($fontScope)" }
 
 # 3. Prompt theme in your home folder
 Write-Step 'Installing the prompt theme'
@@ -272,6 +298,10 @@ if ($hasTerminal) {
 }
 
 Write-Host "`nDone. Close any other PowerShell or Terminal windows: they started before the install." -ForegroundColor Magenta
+if (-not ($hadFile -and $hadEntry) -and (Get-Process WindowsTerminal -ErrorAction SilentlyContinue)) {
+    Write-Host "If Terminal says it can't find '$FontName', close every Terminal window (this one too)" -ForegroundColor Yellow
+    Write-Host 'and open Terminal again: all its windows share one process, which reads the font list when it starts.' -ForegroundColor Yellow
+}
 if ($hasTerminal) {
     Write-Host 'Opening a fresh Windows Terminal with the new look...' -ForegroundColor Magenta
     Start-Process 'wt.exe'
