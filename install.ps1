@@ -301,6 +301,7 @@ Write-Host "`nDone. Close any other PowerShell or Terminal windows: they started
 if (-not ($hadFile -and $hadEntry) -and (Get-Process WindowsTerminal -ErrorAction SilentlyContinue)) {
     Write-Host "If Terminal says it can't find '$FontName', close every Terminal window (this one too)" -ForegroundColor Yellow
     Write-Host 'and open Terminal again: all its windows share one process, which reads the font list when it starts.' -ForegroundColor Yellow
+    Write-Host "If it still can't find the font, restart Windows." -ForegroundColor Yellow
 }
 if ($hasTerminal) {
     Write-Host 'Opening a fresh Windows Terminal with the new look...' -ForegroundColor Magenta
