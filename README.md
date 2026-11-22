@@ -132,7 +132,7 @@ Open Terminal Settings
 -------------
 
  - Profiles:
-    - Set Defaults - PowerShell, Starting directory to $USERPROFILE% , Appearance set Font to IosevkaTerm Nerd Font Mono and Color scheme to CGA ,
+    - Set Defaults - PowerShell, Starting directory to $USERPROFILE% , Appearance set Font to IosevkaTerm NFM and Color scheme to CGA ,
 - Startup:
     - set PowerShell, Default Terminal Application
 - Interaction

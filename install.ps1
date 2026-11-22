@@ -18,7 +18,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $RepoRaw   = 'https://raw.githubusercontent.com/andrewpayne68/windows-terminal-ohmyposh/main'
 $FontFile  = 'IosevkaTermNerdFontMono-Regular.ttf'
-$FontName  = 'IosevkaTerm Nerd Font Mono'
+$FontName  = 'IosevkaTerm NFM'   # the family name inside the .ttf; Terminal needs this exact name
 $ThemeFile = 'jandedobbeleer.omp.json'
 $ColorScheme = 'CGA'   # set as the default color scheme for all profiles
 # CGA is built into newer Windows Terminal versions, but not the older Terminal on a clean
@@ -161,7 +161,7 @@ if ($systemHas -or (Test-Path $fontDest)) {
     New-Item -ItemType Directory -Force $userFonts | Out-Null
     Get-RepoFile $FontFile $fontDest
     if (-not (Test-Path $fontKey)) { New-Item $fontKey -Force | Out-Null }
-    New-ItemProperty -Path $fontKey -Name "$FontName Regular (TrueType)" -Value $fontDest -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $fontKey -Name "$FontName (TrueType)" -Value $fontDest -PropertyType String -Force | Out-Null
     Write-Ok 'Font installed'
 }
 
